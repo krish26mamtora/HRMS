@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import useExpense from "../hooks/useExpense";
 import useProofDocument from "../hooks/useProofDocument";
-import api from "../../auth/api/axios";
+import api, { API_BASE_URL } from "../../auth/api/axios";
 
 type Props = {};
 
@@ -30,7 +30,7 @@ const ExpenseProof = (props: Props) => {
 
     try {
       const response = await fetch(
-        `https://localhost:5235/api/ExpenseProof/download-expense-proof/${ProofDocumentUrl}`,
+        `${API_BASE_URL}/ExpenseProof/download-expense-proof/${encodeURIComponent(ProofDocumentUrl)}`,
       );
       if (!response.ok) {
         throw new Error(

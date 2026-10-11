@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import useApplications from "../hooks/useApplications";
-import api from "../../auth/api/axios";
+import api, { API_BASE_URL } from "../../auth/api/axios";
 import { resume } from "react-dom/server";
 
 export const JobApplications = () => {
@@ -16,7 +16,7 @@ export const JobApplications = () => {
 
     try {
       const response = await fetch(
-        `https://localhost:5235/api/getresume/download-resume/${resumeUrl}`,
+        `${API_BASE_URL}/getresume/download-resume/${encodeURIComponent(resumeUrl)}`,
       );
       if (!response.ok) {
         throw new Error(

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, FormEvent } from "react";
-import api from "../../auth/api/axios";
+import api, { API_BASE_URL } from "../../auth/api/axios";
 import { useParams } from "react-router-dom";
 import useExpense from "../../Employee/hooks/useExpense";
 import type { ExpenseProof } from "../../HR/hooks/useProofDocument";
@@ -44,7 +44,7 @@ export const TravelExpense = () => {
     console.log(documentpath);
     try {
       const response = await fetch(
-        `https://localhost:5235/api/ExpenseProof/download-expense-proof/${encodeURIComponent(documentpath)}`,
+        `${API_BASE_URL}/ExpenseProof/download-expense-proof/${encodeURIComponent(documentpath)}`,
       );
       console.log(response);
 

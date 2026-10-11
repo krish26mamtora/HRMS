@@ -1,6 +1,7 @@
 import React from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import useJobs from "../hooks/useJobs";
+import { API_BASE_URL } from "../../auth/api/axios";
 
 type Props = {};
 
@@ -48,7 +49,7 @@ const Jobs = (props: Props) => {
       const fileName = jdUrl.split(/[\\/]/).pop()!;
 
       const response = await fetch(
-        `http://localhost:5235/api/jobListing/downloadJD/${encodeURIComponent(fileName)}`,
+        `${API_BASE_URL}/jobListing/downloadJD/${encodeURIComponent(fileName)}`,
       );
 
       if (!response.ok) {

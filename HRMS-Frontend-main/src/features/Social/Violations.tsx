@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
-import api from "../auth/api/axios";
+import api, { API_ORIGIN } from "../auth/api/axios";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE_URL = "https://localhost:5235";
 const IMAGE_PATH = "/content/achievements";
 
 const Violations = () => {
@@ -77,7 +76,7 @@ const Violations = () => {
               <div className="aspect-video w-full bg-gray-100 relative">
                 {post.imageUrls?.length > 0 ? (
                   <img
-                    src={`${API_BASE_URL}${IMAGE_PATH}/${post.imageUrls[0]}`}
+                    src={`${API_ORIGIN}${IMAGE_PATH}/${post.imageUrls[0]}`}
                     alt={post.title}
                     className="w-full h-full object-cover grayscale"
                   />

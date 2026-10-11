@@ -4,7 +4,7 @@ import React, {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import api from "../../auth/api/axios";
+import api, { API_BASE_URL } from "../../auth/api/axios";
 import type { TravelDocument } from "../hooks/useTravelDocument";
 import { useNavigate, useParams } from "react-router-dom";
 import useTravelDocument from "../hooks/useTravelDocument";
@@ -88,7 +88,7 @@ const TravelDocument = (props: Props) => {
 
     try {
       const response = await fetch(
-        `https://localhost:5235/api/TravelDocument/download-travel-document/${travelDocumentUrl}`,
+        `${API_BASE_URL}/TravelDocument/download-travel-document/${encodeURIComponent(travelDocumentUrl)}`,
       );
       if (!response.ok) {
         throw new Error(

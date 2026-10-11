@@ -4,6 +4,7 @@ import ReferralModal from "./ReferralModal";
 import type { Job } from "./types";
 import ShareJobModal from "./ShareJobModal";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../../auth/api/axios";
 
 type Props = {};
 type ActiveModal = {
@@ -45,9 +46,8 @@ const Jobs = (props: Props) => {
     }
 
     // Use the protocol and port your backend actually listens on.
-    const apiBaseUrl = "http://localhost:5235";
     const downloadUrl =
-      `${apiBaseUrl}/api/jobListing/downloadJD/` + encodeURIComponent(jdUrl);
+      `${API_BASE_URL}/jobListing/downloadJD/` + encodeURIComponent(jdUrl);
 
     try {
       console.log("JD filename:", jdUrl);

@@ -4,7 +4,7 @@ import useExpense from "../../HR/hooks/useExpense";
 import useProofDocument, {
   type ExpenseProof,
 } from "../../HR/hooks/useProofDocument";
-import api from "../../auth/api/axios";
+import api, { API_BASE_URL } from "../../auth/api/axios";
 import type { Expense } from "../../HR/hooks/useExpense";
 
 type Props = {};
@@ -30,7 +30,7 @@ const EmpTravelExpense = (props: Props) => {
       const documentpath = expenseProofList.data[0].proofDocumentUrl;
       console.log(documentpath);
       const response = await fetch(
-        `https://localhost:5235/api/ExpenseProof/download-expense-proof/${encodeURIComponent(documentpath)}`,
+        `${API_BASE_URL}/ExpenseProof/download-expense-proof/${encodeURIComponent(documentpath)}`,
       );
       console.log(response);
 

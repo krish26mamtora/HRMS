@@ -1,10 +1,9 @@
 import React, { useState } from "react";
 import usePosts, { type PostsDisplayDto } from "./hooks/usePosts";
 import { useNavigate } from "react-router-dom";
-import api from "../auth/api/axios";
+import api, { API_ORIGIN } from "../auth/api/axios";
 import CommentModal from "./CommentModal";
 
-const API_BASE_URL = "https://localhost:5235";
 const IMAGE_PATH = "/content/achievements";
 
 const Social = () => {
@@ -302,7 +301,7 @@ const Social = () => {
                       }
                     >
                       <img
-                        src={`${API_BASE_URL}${IMAGE_PATH}/${url}`}
+                        src={`${API_ORIGIN}${IMAGE_PATH}/${url}`}
                         alt="Post media"
                         className="w-full h-80 object-cover group-hover:brightness-95 transition-all"
                       />
@@ -379,7 +378,7 @@ const Social = () => {
             </button>
           )}
           <img
-            src={`${API_BASE_URL}${IMAGE_PATH}/${viewerData.urls[viewerData.index]}`}
+            src={`${API_ORIGIN}${IMAGE_PATH}/${viewerData.urls[viewerData.index]}`}
             className="max-w-full max-h-full object-contain"
             alt="Preview"
             onClick={(e) => e.stopPropagation()}
