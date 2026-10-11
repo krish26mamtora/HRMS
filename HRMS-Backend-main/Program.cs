@@ -40,7 +40,7 @@ builder.Services.AddCors(options =>
             .AllowCredentials()
             .WithExposedHeaders("Content-Disposition");
 
-        policy.WithOrigins("https://localhost:7035")
+        policy.WithOrigins("https://localhost:5235")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();

@@ -251,7 +251,7 @@ namespace HRMS_Backend.Services.GameScheduling
 
             foreach (var q in waitingList)
             {
-                if(ZeroplayedUsers.Any() && !ZeroplayedUsers.Contains(q.PlayerId))
+                if (ZeroplayedUsers.Any() && !ZeroplayedUsers.Contains(q.PlayerId))
                 {
                     continue;
                 }
@@ -407,7 +407,8 @@ namespace HRMS_Backend.Services.GameScheduling
                 {
                     throw new Exception("Slot already completed");
                 }
-                if (DateTime.Now < slot.StartTime) {
+                if (DateTime.Now < slot.StartTime)
+                {
                     throw new Exception("Slot has not started yet");
                 }
 
@@ -488,7 +489,7 @@ namespace HRMS_Backend.Services.GameScheduling
 
             return await _context.EmployeeCycleStats.Where(x => x.GameCycleId == cycleId && x.GamePlayed == 0).Select(x => x.UserId).ToListAsync();
         }
-      
+
         private async Task<List<GameSlots>> GetFutureAvailableSlots(int cycleId)
         {
             var now = DateTime.UtcNow;
@@ -516,7 +517,8 @@ namespace HRMS_Backend.Services.GameScheduling
                 if (!exists)
                 {
                     await _context.WaitingQueue.AddAsync(
-                      new WaitingQueue {
+                      new WaitingQueue
+                      {
                           PlayerId = userId,
                           SlotId = targetSlot.Id,
                           CycleId = cycleId,
@@ -527,7 +529,7 @@ namespace HRMS_Backend.Services.GameScheduling
             }
             //also remove fro Booking table as curently directly going in booking
         }
-        
+
         public async Task AutoAssignSystemSlots(List<int> zeroPlayUsers, List<GameSlots> availableSlots, int cycleId)
         {
             bool hasParentTransaction = _context.Database.CurrentTransaction != null;
@@ -615,13 +617,15 @@ namespace HRMS_Backend.Services.GameScheduling
                         await SendInviteNotificationEmail(invite, targetSlot);
                     }
                 }
-                if (transaction != null) {
+                if (transaction != null)
+                {
                     await transaction.CommitAsync();
                 }
             }
             catch
             {
-                if (transaction != null) {
+                if (transaction != null)
+                {
                     await transaction.RollbackAsync();
                 }
                 throw;
@@ -629,7 +633,7 @@ namespace HRMS_Backend.Services.GameScheduling
 
 
         }
-  
+
         public async Task<string> ProcessInviteResponseAsync(string token, bool isAccepted)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
@@ -637,7 +641,8 @@ namespace HRMS_Backend.Services.GameScheduling
             {
                 var invite = await _context.BookingInvite.Include(i => i.Slot).FirstOrDefaultAsync(i => i.InviteToken == token && i.Status == "Pending");
 
-                if(invite == null) { 
+                if (invite == null)
+                {
                     return "Link invalid or expired.";
                 }
                 if (invite.Status != "Pending")
@@ -645,9 +650,9 @@ namespace HRMS_Backend.Services.GameScheduling
                     return "Invite already processed";
                 }
 
-                if(isAccepted)
+                if (isAccepted)
                 {
-                    if(invite.Slot.Assigned >= invite.Slot.Capacity)
+                    if (invite.Slot.Assigned >= invite.Slot.Capacity)
                     {
                         invite.Status = "Expired";
                         await _context.SaveChangesAsync();
@@ -691,8 +696,9 @@ namespace HRMS_Backend.Services.GameScheduling
                     invite.Status = "Rejected";
                     var stats = await _context.EmployeeCycleStats.FirstOrDefaultAsync(s => s.UserId == invite.UserId && s.GameCycleId == invite.CycleId);
 
-                    if(stats != null) { 
-                        stats.GamePlayed += 1; 
+                    if (stats != null)
+                    {
+                        stats.GamePlayed += 1;
                     }
 
                     await _context.SaveChangesAsync();
@@ -700,7 +706,7 @@ namespace HRMS_Backend.Services.GameScheduling
                     return "Invitation rejected and slot released.";
                 }
             }
-            catch 
+            catch
             {
                 await transaction.RollbackAsync();
                 throw;
@@ -717,15 +723,15 @@ namespace HRMS_Backend.Services.GameScheduling
                 }
                 await _context.SaveChangesAsync();
                 Console.WriteLine($"[Cleanup] {DateTime.Now}: Released {expiredInvites.Count} expired invite seats.");
-            } 
+            }
         }
         private async Task SendInviteNotificationEmail(BookingInvite invite, GameSlots slot)
         {
             var user = await _context.Users.FindAsync(invite.UserId);
             if (user == null || string.IsNullOrEmpty(user.Email)) return;
 
-            var acceptUrl = $"https://localhost:7035/api/Booking/respond?token={invite.InviteToken}&accept=true";           
-            var rejectUrl = $"https://localhost:7035/api/Booking/respond?token={invite.InviteToken}&accept=false";
+            var acceptUrl = $"https://localhost:5235/api/Booking/respond?token={invite.InviteToken}&accept=true";
+            var rejectUrl = $"https://localhost:5235/api/Booking/respond?token={invite.InviteToken}&accept=false";
 
             var body = $@"
                 <div>
@@ -753,11 +759,13 @@ namespace HRMS_Backend.Services.GameScheduling
         public async Task EvaluateAndTriggerAutoAssign(int cycleId)
         {
             var zeroPlayUsers = await GetZeroPlayUsers(cycleId);
-            if (!zeroPlayUsers.Any()){
+            if (!zeroPlayUsers.Any())
+            {
                 return;
             }
             var availableSlots = await GetFutureAvailableSlots(cycleId);
-            if (!availableSlots.Any()){
+            if (!availableSlots.Any())
+            {
                 return;
             }
             int totalSeats = availableSlots.Sum(s => s.Capacity - s.Assigned);
@@ -769,8 +777,8 @@ namespace HRMS_Backend.Services.GameScheduling
             bool recentlyBooked = await _context.Bookings.AnyAsync(b => b.GameSlots.CycleId == cycleId && b.BookedAt >= twentyFourHoursAgo);
 
             bool LackofActivity = !recentlyBooked;
-            
-            if(LackofActivity || isScarcityTriggered)
+
+            if (LackofActivity || isScarcityTriggered)
             {
                 string reason = isScarcityTriggered ? "Scarcity" : "LackofActivity";
                 Console.WriteLine($"Triggering Auto-Assign for Cycle {cycleId} due to {reason}");
