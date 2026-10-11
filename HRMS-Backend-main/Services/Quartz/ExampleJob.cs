@@ -12,20 +12,27 @@ namespace HRMS_Backend.Services.Quartz
         private readonly IGamesService _gamesService;
         private readonly IBookingService _bookingService;
         private readonly IGameCycleService _gameCycleService;
-        public ExampleJob(IServiceProvider serviceProvider, IGameCycleService gameCycleService, IGamesService gamesService, IBookingService bookingService)
+        private readonly ILogger<ExampleJob> _logger;
+
+        public ExampleJob(IServiceProvider serviceProvider, IGameCycleService gameCycleService, IGamesService gamesService, IBookingService bookingService, ILogger<ExampleJob> logger)
         {
             _serviceProvider = serviceProvider;
             _gamesService = gamesService;
             _bookingService = bookingService;
             _gameCycleService = gameCycleService;
+            _logger = logger;
         }
         public async Task Execute(IJobExecutionContext context)
         {
+            _logger.LogInformation("Quartz job started at {Time}.", DateTimeOffset.UtcNow);
             using (var scope = _serviceProvider.CreateScope())
             {
                 var postService = scope.ServiceProvider.GetRequiredService<IPostsService>();
 
-                await postService.GenerateSystemPosts();
+                var birthdayPostsCreated = await postService.GenerateSystemPosts();
+                _logger.LogInformation(
+                    "Quartz job generated {BirthdayPostCount} birthday posts.",
+                    birthdayPostsCreated);
                 await postService.GenerateAnniversaryPosts();
                 var games = await _gamesService.GetAllGamesAsync();
 
@@ -40,6 +47,7 @@ namespace HRMS_Backend.Services.Quartz
                     }
                 }
 
+                _logger.LogInformation("Quartz job completed at {Time}.", DateTimeOffset.UtcNow);
             }
         }
     }

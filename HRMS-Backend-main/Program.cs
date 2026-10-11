@@ -138,11 +138,16 @@ builder.Services.AddQuartz(q =>
         )
     );
 });
+builder.Services.AddQuartzHostedService(options =>
+{
+    options.WaitForJobsToComplete = true;
+});
 
 // -------------------- Controllers & API Documentation --------------------
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+
 
 // -------------------- Exception Handling --------------------
 
@@ -185,4 +190,11 @@ app.MapControllers();
 
 app.UseExceptionHandler();
 
+// if (app.Environment.IsDevelopment())
+// {
+//     app.MapGet("/__test/exception", (HttpContext _) =>
+//     {
+//         throw new InvalidOperationException("Global exception handler test");
+//     });
+// }
 app.Run();

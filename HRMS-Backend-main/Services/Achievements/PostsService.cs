@@ -243,6 +243,10 @@ namespace HRMS_Backend.Services.Achievements
         {
             DateTime now = DateTime.UtcNow;
             DateOnly todayDate = DateOnly.FromDateTime(now);
+            DateTime startOfToday = DateTime.SpecifyKind(
+                todayDate.ToDateTime(TimeOnly.MinValue),
+                DateTimeKind.Utc);
+            DateTime startOfTomorrow = startOfToday.AddDays(1);
 
             var expiredPostIds = await _context.Posts
                 .Where(p => p.IsSystemGenerated && p.ExpiresAt < now && p.IsVisible)
@@ -264,9 +268,44 @@ namespace HRMS_Backend.Services.Achievements
                 .Where(up => up.Birthday.Month == todayDate.Month && up.Birthday.Day == todayDate.Day)
                 .ToListAsync();
 
+            if (birthdayUsers.Count == 0)
+            {
+                return 0;
+            }
+
+            var birthdayTag = await GetOrCreateSystemTagAsync("Birthday");
+            var birthdayUserIds = birthdayUsers.Select(user => user.UserProfileId).ToList();
+            var existingBirthdayPosts = await _context.Posts
+                .Include(post => post.PostTagMaps)
+                .Include(post => post.PostInteraction)
+                .Where(post =>
+                    post.IsSystemGenerated &&
+                    post.Title == "Happy Birthday! 🎂" &&
+                    post.CreatedAt >= startOfToday &&
+                    post.CreatedAt < startOfTomorrow &&
+                    post.UserId.HasValue &&
+                    birthdayUserIds.Contains(post.UserId.Value))
+                .ToListAsync();
+
             int createdCount = 0;
             foreach (var user in birthdayUsers)
             {
+                var existingPost = existingBirthdayPosts
+                    .FirstOrDefault(post => post.UserId == user.UserProfileId);
+                if (existingPost != null)
+                {
+                    if (!existingPost.PostTagMaps.Any(map => map.TagId == birthdayTag.Id))
+                    {
+                        existingPost.PostTagMaps.Add(new PostTagMap { Tag = birthdayTag });
+                    }
+
+                    existingPost.PostInteraction ??= new PostInteraction
+                    {
+                        LastUpdatedAt = now
+                    };
+                    continue;
+                }
+
                 var birthdayPost = new Posts
                 {
                     UserId = user.UserProfileId,
@@ -278,12 +317,9 @@ namespace HRMS_Backend.Services.Achievements
                     IsSystemGenerated = true
                 };
 
+                birthdayPost.PostTagMaps.Add(new PostTagMap { Tag = birthdayTag });
+                birthdayPost.PostInteraction = new PostInteraction { LastUpdatedAt = now };
                 _context.Posts.Add(birthdayPost);
-                await _context.SaveChangesAsync();
-
-                _context.PostTagMaps.Add(new PostTagMap { PostId = birthdayPost.Id, TagId = 4 });
-                _context.PostInteraction.Add(new PostInteraction { PostId = birthdayPost.Id, LastUpdatedAt = now });
-
                 createdCount++;
             }
 
@@ -295,6 +331,10 @@ namespace HRMS_Backend.Services.Achievements
         {
             DateTime now = DateTime.UtcNow;
             DateOnly todayDate = DateOnly.FromDateTime(now);
+            DateTime startOfToday = DateTime.SpecifyKind(
+                todayDate.ToDateTime(TimeOnly.MinValue),
+                DateTimeKind.Utc);
+            DateTime startOfTomorrow = startOfToday.AddDays(1);
             int currentYear = now.Year;
 
             var expiredPostIds = await _context.Posts
@@ -319,11 +359,46 @@ namespace HRMS_Backend.Services.Achievements
                              up.JoinDate.Year < currentYear)
                 .ToListAsync();
 
-            var newPosts = new List<Posts>();
+            if (anniversaryUsers.Count == 0)
+            {
+                return 0;
+            }
+
+            var anniversaryTag = await GetOrCreateSystemTagAsync("Work Anniversary");
+            var anniversaryUserIds = anniversaryUsers.Select(user => user.UserProfileId).ToList();
+            var existingAnniversaryPosts = await _context.Posts
+                .Include(post => post.PostTagMaps)
+                .Include(post => post.PostInteraction)
+                .Where(post =>
+                    post.IsSystemGenerated &&
+                    post.Title == "Work Anniversary! 🎊" &&
+                    post.CreatedAt >= startOfToday &&
+                    post.CreatedAt < startOfTomorrow &&
+                    post.UserId.HasValue &&
+                    anniversaryUserIds.Contains(post.UserId.Value))
+                .ToListAsync();
+
+            int createdCount = 0;
             foreach (var user in anniversaryUsers)
             {
+                var existingPost = existingAnniversaryPosts
+                    .FirstOrDefault(post => post.UserId == user.UserProfileId);
+                if (existingPost != null)
+                {
+                    if (!existingPost.PostTagMaps.Any(map => map.TagId == anniversaryTag.Id))
+                    {
+                        existingPost.PostTagMaps.Add(new PostTagMap { Tag = anniversaryTag });
+                    }
+
+                    existingPost.PostInteraction ??= new PostInteraction
+                    {
+                        LastUpdatedAt = now
+                    };
+                    continue;
+                }
+
                 int yearsCompleted = currentYear - user.JoinDate.Year;
-                newPosts.Add(new Posts
+                var anniversaryPost = new Posts
                 {
                     UserId = user.UserProfileId,
                     Title = "Work Anniversary! 🎊",
@@ -332,21 +407,32 @@ namespace HRMS_Backend.Services.Achievements
                     ExpiresAt = now.AddDays(1),
                     IsVisible = true,
                     IsSystemGenerated = true
-                });
-            }
+                };
 
-            _context.Posts.AddRange(newPosts);
-            await _context.SaveChangesAsync();
-
-            foreach (var post in newPosts)
-            {
-                _context.PostTagMaps.Add(new PostTagMap { PostId = post.Id, TagId = 5 });
-                _context.PostInteraction.Add(new PostInteraction { PostId = post.Id, LastUpdatedAt = now });
+                anniversaryPost.PostTagMaps.Add(new PostTagMap { Tag = anniversaryTag });
+                anniversaryPost.PostInteraction = new PostInteraction { LastUpdatedAt = now };
+                _context.Posts.Add(anniversaryPost);
+                createdCount++;
             }
 
             await _context.SaveChangesAsync();
-            return newPosts.Count;
+            return createdCount;
         }
+
+        private async Task<Tags> GetOrCreateSystemTagAsync(string tagName)
+        {
+            var existingTag = await _context.Tags
+                .FirstOrDefaultAsync(tag => tag.TagName.ToLower() == tagName.ToLower());
+            if (existingTag != null)
+            {
+                return existingTag;
+            }
+
+            var newTag = new Tags { TagName = tagName };
+            _context.Tags.Add(newTag);
+            return newTag;
+        }
+
         public async Task<bool> ToggleReactionAsync(PostInteractionCreateUpdateDto dto, int userId)
         {
             var existingReaction = await _context.UserPostReaction
