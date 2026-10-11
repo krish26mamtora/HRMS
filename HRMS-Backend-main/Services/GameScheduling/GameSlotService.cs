@@ -50,9 +50,19 @@ namespace HRMS_Backend.Services.GameScheduling
 
                     while (currentStart.AddMinutes(slotDuration) <= dayEndTime)
                     {
-                        var slotStartDateTime = currentDate.ToDateTime(currentStart);
-                        var slotEndDateTime = slotStartDateTime.AddMinutes(slotDuration);
+                        var indiaTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
 
+                        var localSlotStart = DateTime.SpecifyKind(
+                            currentDate.ToDateTime(currentStart),
+                            DateTimeKind.Unspecified);
+
+                        var localSlotEnd = localSlotStart.AddMinutes(slotDuration);
+
+                        var slotStartDateTime = TimeZoneInfo.ConvertTimeToUtc(
+                            localSlotStart, indiaTimeZone);
+
+                        var slotEndDateTime = TimeZoneInfo.ConvertTimeToUtc(
+                            localSlotEnd, indiaTimeZone);
                         slotToInsert.Add(new GameSlots
                         {
                             GamesId = gamesId,
@@ -90,12 +100,34 @@ namespace HRMS_Backend.Services.GameScheduling
             var slots = await _context.GameSlots.ToListAsync();
             return _mapper.Map<IEnumerable<GameSlotsDisplayDto>>(slots);
         }
-        public async Task<IEnumerable<GameSlotsDisplayDto>> GetGamesSlotForGameAndDateAsync(int id, DateTime dt)
-        {
-            dt = dt.Date;
-            var slots = await _context.GameSlots.Where(gs => gs.GamesId == id && gs.StartTime.Date == dt.Date).ToListAsync();
-            return _mapper.Map<IEnumerable<GameSlotsDisplayDto>>(slots);
 
+        public async Task<IEnumerable<GameSlotsDisplayDto>>
+            GetGamesSlotForGameAndDateAsync(int id, DateTime dt)
+        {
+            var indiaTimeZone =
+                TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+
+            // Treat the requested date as an India-local date.
+            var localStart = DateTime.SpecifyKind(
+                dt.Date, DateTimeKind.Unspecified);
+
+            var localEnd = localStart.AddDays(1);
+
+            // Convert the day's boundaries to UTC.
+            var startUtc = TimeZoneInfo.ConvertTimeToUtc(
+                localStart, indiaTimeZone);
+
+            var endUtc = TimeZoneInfo.ConvertTimeToUtc(
+                localEnd, indiaTimeZone);
+
+            var slots = await _context.GameSlots
+                .Where(gs =>
+                    gs.GamesId == id &&
+                    gs.StartTime >= startUtc &&
+                    gs.StartTime < endUtc)
+                .ToListAsync();
+
+            return _mapper.Map<IEnumerable<GameSlotsDisplayDto>>(slots);
         }
         public async Task<Boolean> CompleteSlotAsync(int slotId)
         {

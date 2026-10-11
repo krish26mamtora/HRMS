@@ -27,41 +27,68 @@ namespace HRMS_Backend.Services.GameScheduling
         {
             return await _context.GameCycle.FirstOrDefaultAsync(gc => gc.CycleId == id);
         }
-        public async Task<GameCycleDisplayDto> CreateGameCycleAsync(GameCycleCreateUpdateDto dto)
+
+        public async Task<GameCycleDisplayDto> CreateGameCycleAsync(
+            GameCycleCreateUpdateDto dto)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
+
             try
             {
+                var indiaTimeZone =
+                    TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+
+                var startTimeUtc = TimeZoneInfo.ConvertTimeToUtc(
+                    DateTime.SpecifyKind(
+                        dto.StartTime,
+                        DateTimeKind.Unspecified),
+                    indiaTimeZone);
+
+                var endTimeUtc = TimeZoneInfo.ConvertTimeToUtc(
+                    DateTime.SpecifyKind(
+                        dto.EndTime,
+                        DateTimeKind.Unspecified),
+                    indiaTimeZone);
 
                 var gameCycle = new GameCycle
                 {
                     GamesId = dto.GamesId,
-                    StartTime = dto.StartTime,
-                    EndTime = dto.EndTime,
+                    StartTime = startTimeUtc,
+                    EndTime = endTimeUtc,
                     isActive = dto.isActive
                 };
+
                 await _context.GameCycle.AddAsync(gameCycle);
                 await _context.SaveChangesAsync();
-                var gameName = await _context.Games.Where(g => g.Id == dto.GamesId).Select(g => g.Name).FirstOrDefaultAsync();
-                if (gameName!=null)
-                {
-                    var interestedEmployee = await _context.UserProfile.Where(up => up.FavouriteSport == gameName).Select(ep => ep.UserProfileId).ToListAsync();
 
-                    //Console.Write(interestedEmployee);
-                    //Console.Write("list is here");
+                var gameName = await _context.Games
+                    .Where(g => g.Id == dto.GamesId)
+                    .Select(g => g.Name)
+                    .FirstOrDefaultAsync();
+
+                if (gameName != null)
+                {
+                    var interestedEmployee = await _context.UserProfile
+                        .Where(up => up.FavouriteSport == gameName)
+                        .Select(up => up.UserProfileId)
+                        .ToListAsync();
 
                     if (interestedEmployee.Count > 0)
                     {
-                         await InitializeCycleStatsAsyc(gameCycle.CycleId, interestedEmployee);
+                        await InitializeCycleStatsAsyc(
+                            gameCycle.CycleId,
+                            interestedEmployee);
                     }
                 }
-                await transaction.CommitAsync();
-                         return _mapper.Map<GameCycleDisplayDto>(gameCycle);
 
+                await transaction.CommitAsync();
+
+                return _mapper.Map<GameCycleDisplayDto>(gameCycle);
             }
             catch
             {
-                await transaction.RollbackAsync(); throw;
+                await transaction.RollbackAsync();
+                throw;
             }
         }
 
@@ -90,12 +117,13 @@ namespace HRMS_Backend.Services.GameScheduling
         public async Task<int> getLowsetGamePlayedInCurrentCycle(int cycleId)
         {
             var statsExist = await _context.EmployeeCycleStats.AnyAsync(es => es.GameCycleId == cycleId);
-            if (!statsExist) {
+            if (!statsExist)
+            {
                 return 0;
             }
             var lowestGamePlayedVal = await _context.EmployeeCycleStats
              .Where(es => es.GameCycleId == cycleId)
-             .MinAsync(es=>es.GamePlayed);
+             .MinAsync(es => es.GamePlayed);
 
             return lowestGamePlayedVal;
         }
