@@ -24,23 +24,46 @@ namespace HRMS_Backend.Services.GameScheduling
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                int totalSlotAdded = 0;
-
                 var gameConfig = await _context.GameConfiguration.FirstOrDefaultAsync(gc => gc.GamesId == gamesId);
-                if (gameConfig == null) return null;
+                if (gameConfig == null)
+                {
+                    throw new InvalidOperationException($"Game {gamesId} has no slot configuration.");
+                }
+                if (gameConfig.SlotDuration <= 0 || gameConfig.StartTime >= gameConfig.OverTime)
+                {
+                    throw new InvalidOperationException($"Game {gamesId} has an invalid slot configuration.");
+                }
 
                 var activeCycle = await _context.GameCycle
-                    .FirstOrDefaultAsync(gc => gc.GamesId == gamesId && gc.isActive);
+                    .Where(gc => gc.GamesId == gamesId && gc.isActive)
+                    .OrderByDescending(gc => gc.StartTime)
+                    .ThenByDescending(gc => gc.CycleId)
+                    .FirstOrDefaultAsync();
 
-                if (activeCycle == null) return null;
+                if (activeCycle == null)
+                {
+                    throw new InvalidOperationException($"Game {gamesId} has no active cycle.");
+                }
 
-                DateOnly cycleStartDate = DateOnly.FromDateTime(activeCycle.StartTime);
-                DateOnly cycleEndDate = DateOnly.FromDateTime(activeCycle.EndTime);
+                var indiaTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+                var cycleStartLocal = TimeZoneInfo.ConvertTimeFromUtc(
+                    DateTime.SpecifyKind(activeCycle.StartTime, DateTimeKind.Utc),
+                    indiaTimeZone);
+                var cycleEndLocal = TimeZoneInfo.ConvertTimeFromUtc(
+                    DateTime.SpecifyKind(activeCycle.EndTime, DateTimeKind.Utc),
+                    indiaTimeZone);
+                DateOnly cycleStartDate = DateOnly.FromDateTime(cycleStartLocal);
+                DateOnly cycleEndDate = DateOnly.FromDateTime(cycleEndLocal);
 
                 var slotDuration = gameConfig.SlotDuration;
                 var dayStartTime = gameConfig.StartTime;
                 var dayEndTime = gameConfig.OverTime;
 
+                var existingStartTimes = await _context.GameSlots
+                    .Where(slot => slot.GamesId == gamesId && slot.CycleId == activeCycle.CycleId)
+                    .Select(slot => slot.StartTime)
+                    .ToListAsync();
+                var existingStartTimeSet = existingStartTimes.ToHashSet();
                 var slotToInsert = new List<GameSlots>();
 
 
@@ -50,8 +73,6 @@ namespace HRMS_Backend.Services.GameScheduling
 
                     while (currentStart.AddMinutes(slotDuration) <= dayEndTime)
                     {
-                        var indiaTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
-
                         var localSlotStart = DateTime.SpecifyKind(
                             currentDate.ToDateTime(currentStart),
                             DateTimeKind.Unspecified);
@@ -63,20 +84,22 @@ namespace HRMS_Backend.Services.GameScheduling
 
                         var slotEndDateTime = TimeZoneInfo.ConvertTimeToUtc(
                             localSlotEnd, indiaTimeZone);
-                        slotToInsert.Add(new GameSlots
+                        if (!existingStartTimeSet.Contains(slotStartDateTime))
                         {
-                            GamesId = gamesId,
-                            StartTime = slotStartDateTime,
-                            EndTime = slotEndDateTime,
-                            Capacity = gameConfig.Capacity,
-                            Assigned = 0,
-                            CycleId = activeCycle.CycleId,
-                            IsBookingOpen = true,
-                            SlotPlayed = false
-                        });
+                            slotToInsert.Add(new GameSlots
+                            {
+                                GamesId = gamesId,
+                                StartTime = slotStartDateTime,
+                                EndTime = slotEndDateTime,
+                                Capacity = gameConfig.Capacity,
+                                Assigned = 0,
+                                CycleId = activeCycle.CycleId,
+                                IsBookingOpen = true,
+                                SlotPlayed = false
+                            });
+                        }
 
                         currentStart = currentStart.AddMinutes(slotDuration);
-                        totalSlotAdded++;
                     }
                 }
 
@@ -86,7 +109,7 @@ namespace HRMS_Backend.Services.GameScheduling
                     await _context.SaveChangesAsync();
                 }
                 await transaction.CommitAsync();
-                return totalSlotAdded;
+                return slotToInsert.Count;
             }
             catch (Exception ex)
             {
@@ -97,8 +120,9 @@ namespace HRMS_Backend.Services.GameScheduling
 
         public async Task<IEnumerable<GameSlotsDisplayDto>> GetAllGamesSlotAsync()
         {
-            var slots = await _context.GameSlots.ToListAsync();
-            return _mapper.Map<IEnumerable<GameSlotsDisplayDto>>(slots);
+            var slots = await _context.GameSlots
+                .ToListAsync();
+            return await MapSlotsWithCurrentAssignmentsAsync(slots);
         }
 
         public async Task<IEnumerable<GameSlotsDisplayDto>>
@@ -127,7 +151,34 @@ namespace HRMS_Backend.Services.GameScheduling
                     gs.StartTime < endUtc)
                 .ToListAsync();
 
-            return _mapper.Map<IEnumerable<GameSlotsDisplayDto>>(slots);
+            return await MapSlotsWithCurrentAssignmentsAsync(slots);
+        }
+
+        private async Task<IEnumerable<GameSlotsDisplayDto>> MapSlotsWithCurrentAssignmentsAsync(
+            List<GameSlots> slots)
+        {
+            var slotIds = slots.Select(slot => slot.Id).ToList();
+            var assignedBySlot = await (
+                from participant in _context.BookingParticipants.AsNoTracking()
+                join booking in _context.Bookings.AsNoTracking()
+                    on participant.BookingId equals booking.BId
+                where slotIds.Contains(booking.SlotId) &&
+                    (booking.Status == "Booked" || booking.Status == "Confirmed")
+                group participant by booking.SlotId into slotParticipants
+                select new
+                {
+                    SlotId = slotParticipants.Key,
+                    Assigned = slotParticipants.Count()
+                })
+                .ToDictionaryAsync(result => result.SlotId, result => result.Assigned);
+
+            var slotDtos = _mapper.Map<List<GameSlotsDisplayDto>>(slots);
+            for (var index = 0; index < slots.Count; index++)
+            {
+                slotDtos[index].Assigned = assignedBySlot.GetValueOrDefault(slots[index].Id);
+            }
+
+            return slotDtos;
         }
         public async Task<Boolean> CompleteSlotAsync(int slotId)
         {

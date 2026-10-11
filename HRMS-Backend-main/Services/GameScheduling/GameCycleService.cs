@@ -50,6 +50,18 @@ namespace HRMS_Backend.Services.GameScheduling
                         DateTimeKind.Unspecified),
                     indiaTimeZone);
 
+                if (dto.isActive)
+                {
+                    var previousActiveCycles = await _context.GameCycle
+                        .Where(gc => gc.GamesId == dto.GamesId && gc.isActive)
+                        .ToListAsync();
+
+                    foreach (var previousCycle in previousActiveCycles)
+                    {
+                        previousCycle.isActive = false;
+                    }
+                }
+
                 var gameCycle = new GameCycle
                 {
                     GamesId = dto.GamesId,

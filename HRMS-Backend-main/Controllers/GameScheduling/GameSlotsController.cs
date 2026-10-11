@@ -19,10 +19,19 @@ namespace HRMS_Backend.Controllers.GameScheduling
         }
 
         [HttpPost("{GamesId}")]
-        public async Task<int?> GenerateGameSlotAsync(int GamesId)
+        public async Task<IActionResult> GenerateGameSlotAsync(int GamesId)
         {
-            DateOnly today = DateOnly.FromDateTime(DateTime.Now);
-           return await _service.GenerateGameSlotAsync(GamesId , today);
+            try
+            {
+                var generatedCount = await _service.GenerateGameSlotAsync(
+                    GamesId,
+                    DateOnly.FromDateTime(DateTime.Now));
+                return Ok(new { generatedSlots = generatedCount });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpGet]
