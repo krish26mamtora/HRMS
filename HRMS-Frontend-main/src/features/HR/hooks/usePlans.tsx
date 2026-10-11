@@ -1,4 +1,5 @@
 import api from '../../auth/api/axios';
+import axios from 'axios';
 import { useQuery } from '@tanstack/react-query';
 
 export interface TravelPlan {
@@ -9,15 +10,20 @@ export interface TravelPlan {
     createdByUserId : number;
     travelMode:string;
     tripType:string;
-    Id :number,
+    id :number,
      CreatedAt : Date;
 }
 
 const fetchPlans = async () :Promise<TravelPlan[]>=>{
-    console.log("fetching from db!");
-    const response = await api.get<TravelPlan[]>('/TravelPlan');
-     console.log(response)
-    return response.data;
+    try {
+      const response = await api.get<TravelPlan[]>('/TravelPlan');
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return [];
+      }
+      throw error;
+    }
 }
 
 

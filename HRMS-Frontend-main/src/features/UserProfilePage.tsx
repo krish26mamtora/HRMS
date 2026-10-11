@@ -1,29 +1,67 @@
 import React, { useEffect, useState } from 'react'
+import axios from 'axios';
 import api from './auth/api/axios';
 import useThemeStore from '../store/useThemeStore';
 
+interface UserProfile {
+    userProfileId: number;
+    firstName: string;
+    lastName: string;
+    address: string;
+    designation: string;
+    gender: string;
+    managerId: number;
+    age: number;
+    department: string;
+    favouriteSport: string;
+    birthday: string;
+    joinDate: string;
+    isActive: boolean;
+}
+
 const UserProfilePage = () => {
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState<any>(null);
-    const [user, setUser] = useState<any>(null);
+    const [formData, setFormData] = useState<UserProfile | null>(null);
+    const [user, setUser] = useState<UserProfile | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [updateError, setUpdateError] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
     const userId = localStorage.getItem('id');
     const { isDarkMode, toggleTheme } = useThemeStore();
     
     const handleinputChanges = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData({ ...formData, [name]: value });
+        setFormData(current => current
+            ? { ...current, [name]: name === 'age' ? Number(value) : value }
+            : current);
     }
 
     const updateProfile = async () => {
+        if (!formData) return;
+        if (!Number.isInteger(formData.age) || formData.age < 1 || formData.age > 100) {
+            setUpdateError('Enter an age between 1 and 100 to save your profile.');
+            return;
+        }
+
+        setIsSaving(true);
+        setUpdateError(null);
         try {
             await api.put(`/UserProfile/${userId}`, formData);
-            //console.log("hii");
             setUser({ ...formData });
             setIsEditing(false);
-            alert("Profile updated successfully!");
         } catch (err) {
-            alert("Can not modify profile");
+            if (axios.isAxiosError<{ errors?: Record<string, string[]>; title?: string }>(err)) {
+                const validationErrors = err.response?.data?.errors;
+                setUpdateError(
+                    (validationErrors && Object.values(validationErrors).flat().join(' ')) ||
+                    err.response?.data?.title ||
+                    'Could not update your profile. Please check your details and try again.'
+                );
+            } else {
+                setUpdateError('Could not update your profile. Please try again.');
+            }
+        } finally {
+            setIsSaving(false);
         }
     }
 
@@ -34,7 +72,7 @@ const UserProfilePage = () => {
                     setUser(response.data);
                     setFormData(response.data);
                 })
-                .catch(err => {
+                .catch(() => {
                     setError("Failed to load profile.");
                 });
         } else {
@@ -129,6 +167,25 @@ const UserProfilePage = () => {
                               }
                          </div>
 
+                        <div className="bg-white p-5 rounded-xl border border-gray-100">
+                            <label htmlFor="age" className="text-xs text-gray-400 uppercase">Age</label>
+                            {isEditing ? (
+                                <input
+                                    id="age"
+                                    name="age"
+                                    type="number"
+                                    min="1"
+                                    max="100"
+                                    required
+                                    value={formData.age ?? ""}
+                                    onChange={handleinputChanges}
+                                    className="w-full mt-1 p-2 border-2 border-blue-100 rounded-lg outline-none focus:border-blue-500"
+                                />
+                            ) : (
+                                <p className="text-gray-800 text-lg mt-1">{user.age || "Not provided"}</p>
+                            )}
+                        </div>
+
                         <div className="bg-white p-5 rounded-xl border border-gray-100  flex items-center justify-between">
                             <div>
                                 <label className="text-xs  text-gray-400 uppercase tracking-wider">Employment Status</label>
@@ -145,7 +202,12 @@ const UserProfilePage = () => {
                 </div>
                 {isEditing && (
                     <div className="p-6 bg-gray-50 border-t flex justify-end">
-                        <button onClick={updateProfile} className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-2.5 rounded-xlshadow-blue-100"> Save Profile Changes</button>
+                        <div className="mr-4 flex-1">
+                            {updateError && <p role="alert" className="text-sm text-red-600">{updateError}</p>}
+                        </div>
+                        <button onClick={updateProfile} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-10 py-2.5 rounded-xl shadow-blue-100">
+                            {isSaving ? 'Saving...' : 'Save Profile Changes'}
+                        </button>
                     </div>
                 )}
             </div>
@@ -153,7 +215,15 @@ const UserProfilePage = () => {
     )
 }
 
-const EditableField = ({ label, name, isEditing, value, onChange }: any) => (
+interface EditableFieldProps {
+    label?: string;
+    name: string;
+    isEditing: boolean;
+    value: string | number | null | undefined;
+    onChange: React.ChangeEventHandler<HTMLInputElement>;
+}
+
+const EditableField = ({ label, name, isEditing, value, onChange }: EditableFieldProps) => (
     <div className="flex flex-col gap-1 w-full">
         {label && <label className="text-xs  text-gray-400 uppercase">{label}</label>}
         {isEditing ? (

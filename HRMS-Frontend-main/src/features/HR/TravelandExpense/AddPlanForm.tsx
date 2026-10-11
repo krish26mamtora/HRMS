@@ -1,31 +1,30 @@
-import React, { useState, type ChangeEvent, type FormEvent } from 'react'
+import { useState, type ChangeEvent, type FormEvent } from 'react'
 import api from '../../auth/api/axios';
-import type { AxiosError } from 'axios';
 import axios from 'axios';
-import { usePlans } from '../hooks/usePlans';
 import { useNavigate } from 'react-router-dom';
-type Props = {}
+import { useQueryClient } from '@tanstack/react-query';
 
 export interface TravelPlanData {
   startDate: string;
   endDate: string;
-  TravelMode : string;
-  TripType: string;
+  travelMode : string;
+  tripType: string;
   destination: string;
   purpose: string;
   createdByUserId : number;
 }
 
-const AddPlanForm = (props: Props) => {
+const AddPlanForm = () => {
        const [feedback , setFeedback]= useState({message:'' , error:''});
+       const [isSubmitting, setIsSubmitting] = useState(false);
         
         const [formData , setFormData] = useState<TravelPlanData>({
             startDate : '',
             endDate : '',
             destination : '',
             purpose : '',
-            TravelMode: '',
-            TripType:'',
+            travelMode: '',
+            tripType:'',
             createdByUserId : Number(localStorage.getItem('id'))||0
         });
     
@@ -36,6 +35,7 @@ const AddPlanForm = (props: Props) => {
             }))
         }
         const navigate = useNavigate();
+        const queryClient = useQueryClient();
 
             const handleClose = () =>{
                 navigate('/hr/travel/');
@@ -43,23 +43,47 @@ const AddPlanForm = (props: Props) => {
     const handleSubmit =async (e:FormEvent<HTMLFormElement>)=>{
         e.preventDefault();
         // console.log(formData);
-        console.log(localStorage.getItem('id'));
-        console.log(formData.createdByUserId);
-       if(!formData.TravelMode||!formData.TripType||!formData.startDate||!formData.createdByUserId||!formData.destination||!formData.endDate||!formData.purpose){
-            setFeedback(prev => ({ ...prev, error: 'Please enter all fields' }));
-                return;
-       }try{
-            const res = await api.post("/TravelPlan" , formData)
-            if(res.status >= 200 && res.status<=300){
-                alert("Plan created");
-            }
-        }catch(err){
+       if(!formData.travelMode||!formData.tripType||!formData.startDate||!formData.createdByUserId||!formData.destination||!formData.endDate||!formData.purpose){
+            setFeedback({ message: '', error: 'Please complete all required fields.' });
+            return;
+       }
+       if (new Date(formData.startDate) > new Date(formData.endDate)) {
+            setFeedback({ message: '', error: 'The end date must be on or after the start date.' });
+            return;
+       }
+       setIsSubmitting(true);
+       setFeedback({ message: '', error: '' });
+       try{
+            await api.post("/TravelPlan", {
+              ...formData,
+              startDate: `${formData.startDate}T00:00:00.000Z`,
+              endDate: `${formData.endDate}T00:00:00.000Z`,
+            });
+            await queryClient.invalidateQueries({ queryKey: ['TravelPlans'] });
+            navigate('/hr/travel');
+        } catch(err) {
             if(axios.isAxiosError(err)){
-                const axiosError = err as AxiosError<{message:string}>;
-                setFeedback(prev=>({...prev , error:axiosError.response?.data?.message || 'failed to add plan'}))
-            }else{
-                setFeedback(prev=>({...prev , error:'An error occured'}));
+                const responseMessage = err.response?.data;
+                const validationMessage =
+                  typeof responseMessage === 'string'
+                    ? responseMessage
+                    : responseMessage && typeof responseMessage === 'object' && 'errors' in responseMessage
+                      ? Object.values(responseMessage.errors as Record<string, string[]>).flat().join(' ')
+                      : err.response?.status === 401 || err.response?.status === 403
+                        ? 'Your session may have expired or your account is not permitted to create travel plans. Please sign in again or contact an administrator.'
+                        : undefined;
+                setFeedback({
+                  message: '',
+                  error: validationMessage || 'Could not create the travel plan. Please check your details and try again.',
+                });
+            } else {
+                setFeedback({
+                  message: '',
+                  error: 'Could not create the travel plan. Please try again.',
+                });
             }
+        } finally {
+            setIsSubmitting(false);
        }
     }
 
@@ -71,6 +95,7 @@ const AddPlanForm = (props: Props) => {
         <h2 className="text-xl font-semibold text-gray-800">Create New Plan</h2>
               <button onClick={handleClose} className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition">Close</button>
     </div> 
+    {feedback.error && <p role="alert" className="mb-4 text-sm text-red-600">{feedback.error}</p>}
     {/* <div>AddPlanForm</div> */}
     <div className="">
         <form onSubmit={handleSubmit}  className="space-y-4">
@@ -91,8 +116,8 @@ const AddPlanForm = (props: Props) => {
                  <input type="date" id="endDate" name="endDate" className="w-full border border-gray-300 rounded-md px-3 py-2" value={formData.endDate} onChange={handleChange} required/>
               </div>
               <div>
-              <label htmlFor="TravelMode" className="block text-sm font-medium text-gray-700 mb-1">Select an option</label>
-                <select id="TravelMode" name="TravelMode"  value={formData.TravelMode} onChange={handleChange} required className="block w-full px-3 py-2.5 bg-neutral-secondary-medium border border-default-medium text-heading text-sm rounded-base focus:ring-brand focus:border-brand shadow-xs placeholder:text-body">
+              <label htmlFor="travelMode" className="block text-sm font-medium text-gray-700 mb-1">Select an option</label>
+                <select id="travelMode" name="travelMode"  value={formData.travelMode} onChange={handleChange} required className="block w-full px-3 py-2.5 bg-neutral-secondary-medium border border-default-medium text-heading text-sm rounded-base focus:ring-brand focus:border-brand shadow-xs placeholder:text-body">
                 <option value="" disabled>Select Transport Mode</option> 
                 <option value="road">Road Transport</option>
                 <option value="rail">Rail Transport</option>
@@ -101,8 +126,8 @@ const AddPlanForm = (props: Props) => {
             </select>
             </div>
             <div>
-            <label htmlFor="TripType" className="block text-sm font-medium text-gray-700 mb-1">Trip Type</label>
-            <select id="TripType" name="TripType" value={formData.TripType} onChange={handleChange} required className="block w-full px-3 py-2.5 bg-neutral-secondary-medium border border-default-medium text-heading text-sm rounded-base focus:ring-brand focus:border-brand shadow-xs placeholder:text-body">
+            <label htmlFor="tripType" className="block text-sm font-medium text-gray-700 mb-1">Trip Type</label>
+            <select id="tripType" name="tripType" value={formData.tripType} onChange={handleChange} required className="block w-full px-3 py-2.5 bg-neutral-secondary-medium border border-default-medium text-heading text-sm rounded-base focus:ring-brand focus:border-brand shadow-xs placeholder:text-body">
                 <option value="" disabled>Select Trip Type</option>
                 <option value="Client Meeting">Client Meeting</option>
                 <option value="Conferences and Trade Showst">Conferences and Trade Showst</option>
@@ -113,7 +138,9 @@ const AddPlanForm = (props: Props) => {
             </div>
             <input type="hidden" id="createdByUserId" name="createdByUserId" value={localStorage.getItem('id')||''} required/>
 
-            <button type='submit' className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 border border-blue-700 rounded">Create Plan</button>
+            <button type='submit' disabled={isSubmitting} className="bg-blue-500 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 text-white font-bold py-2 px-4 border border-blue-700 rounded">
+              {isSubmitting ? 'Creating plan...' : 'Create Plan'}
+            </button>
         </form>        
     </div>
 </div>

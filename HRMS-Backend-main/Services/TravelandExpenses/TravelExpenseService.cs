@@ -22,24 +22,22 @@ namespace HRMS_Backend.Services.TravelandExpenses
 
         public async Task<TravelExpense> CreateTravelExpenseAsync(ExpenseCreateUpdateDto dto)
         {
+            var expenseDate = AsUtc(dto.ExpenseDate);
+            var expenseDateOnly = DateOnly.FromDateTime(expenseDate);
+            await EnsureDailyExpenseLimitAsync(dto.TravelAssignId, dto.ExpenseType.Value, expenseDateOnly, dto.Amount);
 
-            DateOnly DateOnly = DateOnly.FromDateTime(dto.ExpenseDate);
-            var checkDailyLimit = await getExpenseListForEmployeeByDate(dto.TravelAssignId, dto.ExpenseType.Value, DateOnly, dto.Amount);
-            if (!checkDailyLimit)
-            {
-                throw new InvalidOperationException("Daily expense limit exceeded for this category.");
-            }
+            var now = DateTime.UtcNow;
             var travelPlanExpense = new TravelExpense
             {
                 TravelAssignId = dto.TravelAssignId,
                 ExpenseType = dto.ExpenseType,
                 Amount = dto.Amount,
                 Status = dto.Status,
-                ExpenseDate = dto.ExpenseDate,
+                ExpenseDate = expenseDate,
                 Description = dto.Description,
                 ApprovedBy = dto.ApprovedBy,
-                CreatedAt = dto.CreatedAt,
-                UpdatedAt = dto.UpdatedAt
+                CreatedAt = now,
+                UpdatedAt = now
             };
 
             _context.TravelExpense.Add(travelPlanExpense);
@@ -71,7 +69,11 @@ namespace HRMS_Backend.Services.TravelandExpenses
             {
                 return false;
             }
+            var createdAt = expense.CreatedAt;
             _mapper.Map(dto, expense);
+            expense.ExpenseDate = AsUtc(dto.ExpenseDate);
+            expense.CreatedAt = createdAt;
+            expense.UpdatedAt = DateTime.UtcNow;
             try
             {
                 _context.TravelExpense.Update(expense);
@@ -100,15 +102,45 @@ namespace HRMS_Backend.Services.TravelandExpenses
             }
             return _mapper.Map<List<ExpenseDisplayDto>>(expense);
         }
-        public async Task<bool> getExpenseListForEmployeeByDate(int travelAssignId, int expenseType, DateOnly date, decimal newAmount)
+        private async Task EnsureDailyExpenseLimitAsync(int travelAssignId, int expenseType, DateOnly date, decimal newAmount)
         {
-            DateTime filterDate = date.ToDateTime(TimeOnly.MinValue);
+            var policy = await _context.ExpensePolicy
+                .Where(ep => ep.Id == expenseType)
+                .Select(ep => new { ep.Category, ep.MaxAmout })
+                .SingleOrDefaultAsync();
+            if (policy == null || policy.MaxAmout <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"No valid expense limit is configured for category {expenseType}.");
+            }
 
-            var ans = await _context.TravelExpense.Where(te => te.TravelAssignId == travelAssignId && te.ExpenseDate.Date == filterDate.Date && te.ExpenseType == expenseType).SumAsync(te => te.Amount);
+            var startOfDayUtc = DateTime.SpecifyKind(
+                date.ToDateTime(TimeOnly.MinValue),
+                DateTimeKind.Utc);
+            var startOfNextDayUtc = startOfDayUtc.AddDays(1);
 
-            var cmp = await _context.ExpensePolicy.Where(ep => ep.Id == expenseType).Select(ep => ep.MaxAmout).FirstOrDefaultAsync();
+            var dailyTotal = await _context.TravelExpense
+                .Where(te =>
+                    te.TravelAssignId == travelAssignId &&
+                    te.ExpenseDate >= startOfDayUtc &&
+                    te.ExpenseDate < startOfNextDayUtc &&
+                    te.ExpenseType == expenseType)
+                .SumAsync(te => te.Amount);
 
-            return (ans + newAmount) <= cmp;
+            if (dailyTotal + newAmount > policy.MaxAmout)
+            {
+                throw new InvalidOperationException(
+                    $"Daily limit for {policy.Category} is {policy.MaxAmout}. " +
+                    $"Already claimed: {dailyTotal}; this expense: {newAmount}.");
+            }
         }
+
+        private static DateTime AsUtc(DateTime value) =>
+            value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
     }
 }

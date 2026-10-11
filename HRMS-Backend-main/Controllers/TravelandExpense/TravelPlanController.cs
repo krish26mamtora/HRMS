@@ -38,10 +38,6 @@ namespace HRMS_Backend.Controllers.TravelandExpense
         public async Task<IActionResult> GetAll()
         {
             var plans = await _service.GetAllPlansAsync();
-            if (plans == null || !plans.Any())
-            {
-                return NotFound("No plans found");
-            }
             return Ok(plans);
         }
 

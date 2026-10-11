@@ -23,14 +23,14 @@ namespace HRMS_Backend.Services.TravelandExpenses
         {
             var travelPlan = new TravelPlan
             {
-                StartDate = dto.StartDate,
-                EndDate = dto.EndDate,
+                StartDate = AsUtc(dto.StartDate),
+                EndDate = AsUtc(dto.EndDate),
                 Destination = dto.Destination,
                 Purpose = dto.Purpose,
                 TravelMode = dto.TravelMode,
                 TripType = dto.TripType,
-                
-                CreatedByUserId = dto.CreatedByUserId
+                CreatedByUserId = dto.CreatedByUserId,
+                CreatedAt = DateTime.UtcNow
             };
             //var travelPlan = _mapper.Map<TravelPlan>(dto);
             if(travelPlan.StartDate > travelPlan.EndDate)
@@ -42,6 +42,14 @@ namespace HRMS_Backend.Services.TravelandExpenses
             return travelPlan;
 
         }
+
+        private static DateTime AsUtc(DateTime value) =>
+            value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
 
         public async Task<IEnumerable<TravelResponseDto>> GetAllPlansAsync()
         {
@@ -66,6 +74,9 @@ namespace HRMS_Backend.Services.TravelandExpenses
                 return false;
             }
             _mapper.Map(dto, plan);
+            plan.StartDate = AsUtc(dto.StartDate);
+            plan.EndDate = AsUtc(dto.EndDate);
+            plan.LastUpdatedAt = DateTime.UtcNow;
             try
             {
                 _context.TravelPlan.Update(plan);
