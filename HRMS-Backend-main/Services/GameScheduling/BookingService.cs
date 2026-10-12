@@ -407,7 +407,7 @@ namespace HRMS_Backend.Services.GameScheduling
                 {
                     throw new Exception("Slot already completed");
                 }
-                if (DateTime.Now < slot.StartTime)
+                if (DateTime.UtcNow < slot.StartTime)
                 {
                     throw new Exception("Slot has not started yet");
                 }
@@ -467,7 +467,7 @@ namespace HRMS_Backend.Services.GameScheduling
                         q.Status = "Expired";
 
                     if (expiredUserIds.Any())
-                        await NotifyBookedUsersAsync(expiredUserIds, slot, activeBooking.User.Id);
+                        await NotifyBookedUsersAsync(expiredUserIds, slot, activeBooking.BookedBy);
 
                     slot.SlotPlayed = true;
                     slot.IsBookingOpen = false;

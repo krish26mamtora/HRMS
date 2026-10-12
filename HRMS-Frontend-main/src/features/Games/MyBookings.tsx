@@ -56,7 +56,16 @@ const MyBookings = () => {
       alert("Slot marked as completed!");
     } catch (err) {
       console.error("Failed to complete slot", err);
-      alert("Error updating slot status.");
+      const message = axios.isAxiosError(err)
+        ? err.response?.data?.error
+        : err instanceof Error
+          ? err.message
+          : null;
+      alert(
+        typeof message === "string" && message
+          ? `Unable to complete slot: ${message}`
+          : "Unable to complete slot. Please try again.",
+      );
     }
   };
   const handleCancelSlot = async (bookingId: number) => {
