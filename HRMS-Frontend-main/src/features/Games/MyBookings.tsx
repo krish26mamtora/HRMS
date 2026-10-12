@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import api from '../auth/api/axios';
@@ -59,11 +59,11 @@ const MyBookings = () => {
       alert("Error updating slot status.");
     }
   };
-    const handleCancleSlot = async (slotId: number, bookingId: number) => {
+  const handleCancelSlot = async (bookingId: number) => {
     if (!window.confirm("Are you sure you want to cancel this slot?")) return;
 
     try {
-      await api.put(`/Booking/cancel/${slotId}`);
+      await api.put(`/Booking/cancel/${bookingId}`);
       
       setBookings((prevBookings) =>
         prevBookings.map((b) =>
@@ -119,7 +119,7 @@ const MyBookings = () => {
                         Complete
                       </button>
                     )}
-                    <button  disabled={booking.status=="Completed" || booking.status=="Cancelled"} onClick={() => handleCancleSlot(booking.slotId, booking.bId)}  className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition text-sm"> Cancel  </button>
+                    <button  disabled={booking.status=="Completed" || booking.status=="Cancelled"} onClick={() => handleCancelSlot(booking.bId)}  className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition text-sm"> Cancel  </button>
                   </td>
                 </tr>
               ))}
