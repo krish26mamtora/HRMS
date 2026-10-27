@@ -2,6 +2,7 @@
 using HRMS_Backend.Services.GameScheduling;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HRMS_Backend.Controllers.GameScheduling
 {
@@ -11,9 +12,11 @@ namespace HRMS_Backend.Controllers.GameScheduling
     public class BookingController : ControllerBase
     {
         private readonly IBookingService _service;
-        public  BookingController(IBookingService service)
+        private readonly ILogger<BookingController> _logger;
+        public BookingController(IBookingService service, ILogger<BookingController> logger)
         {
             _service = service;
+            _logger = logger;
         }
         [HttpPost]
         public async Task<IActionResult> RequestBookingAsync([FromBody] BookingRequestCreateDto dto)
@@ -32,8 +35,17 @@ namespace HRMS_Backend.Controllers.GameScheduling
                 return Ok(BookingResult);
                 //return CreatedAtAction(nameof(getBookingById), new { id = CreateBooking.BId }, CreateBooking);
             }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Failed to save booking request for slot {SlotId}", dto.SlotId);
+                return Conflict(new
+                {
+                    message = "The database rejected this booking request. Refresh the slot and try again. If the problem continues, contact support."
+                });
+            }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Failed to process booking request for slot {SlotId}", dto.SlotId);
                 return BadRequest(ex.Message);
             }
         }

@@ -141,12 +141,11 @@ namespace HRMS_Backend.Services.GameScheduling
 
                 foreach (var userId in queueUsers)
                 {
-                    bool exists = await _context.WaitingQueue.AnyAsync(q =>
+                    var existingQueueEntry = await _context.WaitingQueue.FirstOrDefaultAsync(q =>
                         q.PlayerId == userId &&
-                        q.SlotId == dto.SlotId &&
-                        q.Status == "Waiting");
+                        q.SlotId == dto.SlotId);
 
-                    if (!exists)
+                    if (existingQueueEntry == null)
                     {
                         await _context.WaitingQueue.AddAsync(new WaitingQueue
                         {
@@ -156,6 +155,13 @@ namespace HRMS_Backend.Services.GameScheduling
                             Status = "Waiting",
                             InsertionTime = DateTime.UtcNow
                         });
+                    }
+                    else if (existingQueueEntry.Status != "Waiting")
+                    {
+                        existingQueueEntry.CycleId = slot.CycleId;
+                        existingQueueEntry.Status = "Waiting";
+                        existingQueueEntry.InsertionTime = DateTime.UtcNow;
+                        existingQueueEntry.UpdationTime = DateTime.UtcNow;
                     }
                     result.WaitingUsers.Add(userId);
                 }

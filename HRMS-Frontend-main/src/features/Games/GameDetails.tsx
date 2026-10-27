@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import axios from "axios";
 import useGameSlots, { type GameSlot } from "./hooks/useGameSlots";
 import useCreateBooking from "./hooks/useCreateBooking";
 import useProfile from "../OrgChart/hooks/useProfile";
@@ -52,6 +53,7 @@ const GameDetails = () => {
   const [bookingResults, setBookingResults] = useState<UserBookingDetail[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<GameSlot | null>(null);
   const [displayMessage, notifyUser] = useState<string | null>(null);
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
   const getInitialDate = () => {
     const today = getDateInGameTimeZone(new Date());
@@ -98,11 +100,8 @@ const GameDetails = () => {
   };
 
   const handleAddUser = () => {
-    const availableSeats = selectedSlot
-      ? selectedSlot.capacity - selectedSlot.assigned
-      : 0;
-    if (userIds.length >= availableSeats) {
-      alert(`You can only add ${availableSeats} users for this slot.`);
+    if (userIds.length >= 4) {
+      alert("You can add up to 4 users for this slot.");
       return;
     }
     setUserIds([...userIds, 0]);
@@ -121,7 +120,14 @@ const GameDetails = () => {
 
   const handleSubmit = async () => {
     if (!selectedSlot) return;
+    const selectedUserIds = userIds.filter((id) => id > 0);
+    if (selectedUserIds.length === 0) {
+      notifyUser("Select at least one player before submitting.");
+      return;
+    }
+
     setBookingResults([]);
+    setBookingError(null);
     notifyUser("Processing...");
 
     try {
@@ -129,7 +135,7 @@ const GameDetails = () => {
         SlotId: selectedSlot.id,
         BookedBy: Number(loggedInUserId),
         Status: "Pending",
-        userIds: userIds.filter((id) => id > 0),
+        userIds: selectedUserIds,
       });
 
       if (result && result.userResults) {
@@ -145,8 +151,27 @@ const GameDetails = () => {
       if (currentSlot) {
         setSelectedSlot(currentSlot);
       }
-    } catch (error: any) {
-      notifyUser("Connection error. Please try again.");
+    } catch (error: unknown) {
+      const responseData = axios.isAxiosError(error)
+        ? error.response?.data
+        : undefined;
+      const serverMessage =
+        typeof responseData === "string"
+          ? responseData
+          : typeof responseData?.message === "string"
+            ? responseData.message
+            : typeof responseData?.title === "string"
+              ? responseData.title
+              : undefined;
+      setBookingError(
+        serverMessage ??
+          (axios.isAxiosError(error) && error.response
+            ? `Booking failed (${error.response.status}). Please try again.`
+            : error instanceof Error
+              ? error.message
+              : "Unable to submit the booking request."),
+      );
+      notifyUser(null);
     }
   };
 
@@ -264,6 +289,12 @@ const GameDetails = () => {
                 {formatGameTime(selectedSlot.endTime)}
               </div>
             </div>
+            {getAvailableSeats(selectedSlot) === 0 && (
+              <p className="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+                This slot is full. You can still submit a request; eligible
+                players will be added to the waiting queue.
+              </p>
+            )}
 
             <div className="space-y-3 max-h-60 overflow-y-visible mb-2">
               {userIds.map((id, index) => (
@@ -331,11 +362,8 @@ const GameDetails = () => {
 
             <button
               onClick={handleAddUser}
-              disabled={
-                userIds.length >= 4 ||
-                userIds.length >= getAvailableSeats(selectedSlot)
-              }
-              className={`text-sm underline mb-4 ${userIds.length >= 4 || userIds.length >= getAvailableSeats(selectedSlot) ? "text-gray-400" : "text-blue-600"}`}
+              disabled={userIds.length >= 4}
+              className={`text-sm underline mb-4 ${userIds.length >= 4 ? "text-gray-400" : "text-blue-600"}`}
             >
               {userIds.length >= 4
                 ? "Maximum 4 users reached"
@@ -356,19 +384,35 @@ const GameDetails = () => {
                           className={
                             res.status === "Failed"
                               ? "text-red-700"
-                              : "text-green-700"
+                              : res.status === "Waiting"
+                                ? "text-amber-700"
+                                : "text-green-700"
                           }
                         >
                           {res.status}
                         </span>
                       </div>
                       <p className="text-xs text-gray-600 mt-1">
-                        {res.message}
+                        {res.status === "Waiting"
+                          ? `Added to waiting queue. ${res.message}`
+                          : res.message}
                       </p>
                     </li>
                   ))}
                 </ul>
+                {bookingResults.some((result) => result.status === "Waiting") && (
+                  <p className="mt-3 border-t border-gray-200 pt-3 text-sm font-medium text-amber-800">
+                    One or more players are in the waiting queue and may be
+                    promoted if seats become available.
+                  </p>
+                )}
               </div>
+            )}
+
+            {bookingError && (
+              <p role="alert" className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                {bookingError}
+              </p>
             )}
 
             {displayMessage && (
@@ -382,6 +426,7 @@ const GameDetails = () => {
                 onClick={() => {
                   setSelectedSlot(null);
                   setBookingResults([]);
+                  setBookingError(null);
                   notifyUser(null);
                 }}
                 className="px-4 py-2 bg-gray-200 rounded"
@@ -392,7 +437,6 @@ const GameDetails = () => {
                 onClick={handleSubmit}
                 disabled={
                   createBookingMutation.isPending ||
-                  getAvailableSeats(selectedSlot) === 0 ||
                   !selectedSlot.isBookingOpen
                 }
                 className="px-4 py-2 bg-green-600 text-white rounded font-bold"

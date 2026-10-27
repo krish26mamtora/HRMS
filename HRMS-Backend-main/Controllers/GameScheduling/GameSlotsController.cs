@@ -23,7 +23,8 @@ namespace HRMS_Backend.Controllers.GameScheduling
         {
             try
             {
-                var generatedCount = await _service.GenerateGameSlotAsync(
+                var generatedCount
+                 = await _service.GenerateGameSlotAsync(
                     GamesId,
                     DateOnly.FromDateTime(DateTime.Now));
                 return Ok(new { generatedSlots = generatedCount });
@@ -46,9 +47,9 @@ namespace HRMS_Backend.Controllers.GameScheduling
 
         }
         [HttpGet("slots")]
-        public async Task<IActionResult?> GetGamesSlotForGameAndDateAsync([FromQuery] int id,[FromQuery] DateTime dt)
+        public async Task<IActionResult?> GetGamesSlotForGameAndDateAsync([FromQuery] int id, [FromQuery] DateTime dt)
         {
-            var slots = await _service.GetGamesSlotForGameAndDateAsync(id , dt);
+            var slots = await _service.GetGamesSlotForGameAndDateAsync(id, dt);
             if (slots == null)
             {
                 return NotFound("No slots found");

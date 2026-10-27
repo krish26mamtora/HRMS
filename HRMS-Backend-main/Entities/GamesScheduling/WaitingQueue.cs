@@ -25,8 +25,8 @@ namespace HRMS_Backend.Entities.GamesScheduling
         [ForeignKey("CycleId")]
         public GameCycle GameCycle { get; set; }
 
-        public DateTime InsertionTime { get; set; } = DateTime.Now;
-        public DateTime UpdationTime { get; set; } = DateTime.Now;
+        public DateTime InsertionTime { get; set; } = DateTime.UtcNow;
+        public DateTime UpdationTime { get; set; } = DateTime.UtcNow;
 
         public string Status { get; set; }
 
