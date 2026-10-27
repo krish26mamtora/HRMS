@@ -44,6 +44,15 @@ const GameConfig = () => {
   const [cycleLoadError, setCycleLoadError] = useState<string | null>(null);
   const [cycleSuccess, setCycleSuccess] = useState<string | null>(null);
   const [isStartingCycle, setIsStartingCycle] = useState(false);
+  const [generatingSlotsFor, setGeneratingSlotsFor] = useState<number | null>(
+    null,
+  );
+  const [slotGenerationMessage, setSlotGenerationMessage] = useState<
+    string | null
+  >(null);
+  const [slotGenerationError, setSlotGenerationError] = useState<string | null>(
+    null,
+  );
 
   const fetchAllData = async () => {
     setIsLoading(true);
@@ -246,6 +255,34 @@ const GameConfig = () => {
       );
     } finally {
       setIsStartingCycle(false);
+    }
+  };
+
+  const generateGameSlots = async (gameId: number) => {
+    setGeneratingSlotsFor(gameId);
+    setSlotGenerationMessage(null);
+    setSlotGenerationError(null);
+    try {
+      const response = await api.post<{ generatedSlots: number }>(
+        `/GameSlots/${gameId}`,
+      );
+      setSlotGenerationMessage(
+        `${response.data.generatedSlots} game slot${response.data.generatedSlots === 1 ? "" : "s"} generated.`,
+      );
+    } catch (generationError: unknown) {
+      const serverMessage = axios.isAxiosError(generationError)
+        ? (generationError.response?.data?.message ??
+          generationError.response?.data?.title)
+        : undefined;
+      setSlotGenerationError(
+        typeof serverMessage === "string"
+          ? serverMessage
+          : generationError instanceof Error
+            ? generationError.message
+            : "Failed to generate game slots.",
+      );
+    } finally {
+      setGeneratingSlotsFor(null);
     }
   };
 
@@ -471,6 +508,16 @@ const GameConfig = () => {
             {cycleLoadError}
           </p>
         )}
+        {slotGenerationMessage && (
+          <p role="status" className="mb-3 text-sm text-green-700">
+            {slotGenerationMessage}
+          </p>
+        )}
+        {slotGenerationError && (
+          <p role="alert" className="mb-3 text-sm text-red-600">
+            {slotGenerationError}
+          </p>
+        )}
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-700">
@@ -479,6 +526,7 @@ const GameConfig = () => {
                 <th className="px-4 py-3 font-medium">Start</th>
                 <th className="px-4 py-3 font-medium">End</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -518,12 +566,26 @@ const GameConfig = () => {
                           : "No active cycle"}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    {cycle && (
+                      <button
+                        type="button"
+                        onClick={() => generateGameSlots(game.id)}
+                        disabled={generatingSlotsFor !== null}
+                        className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {generatingSlotsFor === game.id
+                          ? "Generating..."
+                          : "Generate slots"}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {activeCycles.length === 0 && !isLoading && (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-4 py-6 text-center text-slate-500"
                   >
                     No games found.
