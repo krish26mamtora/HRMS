@@ -43,7 +43,7 @@ namespace HRMS_Backend.Services.Quartz
                     {
                         await _bookingService.CleanupExpiredInvites(activeCycleId.Value);
                         await _bookingService.EvaluateAndTriggerAutoAssign(activeCycleId.Value);
-                        Console.WriteLine($"[Quartz Job] {DateTime.Now}: Evaluated Auto-Assign for Game {game.Id}");
+                        Console.WriteLine($"[Quartz Job] {DateTimeOffset.UtcNow:O}: Evaluated Auto-Assign for Game {game.Id}");
                     }
                 }
 

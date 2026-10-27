@@ -6,6 +6,8 @@
         public int UserId { get; set; }
         public int BookingId { get; set; }
         public int SlotId { get; set; }
+        public DateTime SlotStartTime { get; set; }
+        public DateTime SlotEndTime { get; set; }
         public int CycleId { get; set; }
         public string Status { get; set; }
         public DateTime InsertionTime { get; set; }

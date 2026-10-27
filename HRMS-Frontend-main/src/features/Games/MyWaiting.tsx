@@ -3,11 +3,39 @@ import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import api from "../auth/api/axios";
 
+interface WaitingEntry {
+  queueId: number;
+  slotId: number;
+  slotStartTime: string;
+  slotEndTime: string;
+  status: string;
+}
+
+const GAME_TIME_ZONE = "Asia/Kolkata";
+
+const formatSlotDate = (value: string) =>
+  new Intl.DateTimeFormat("en-IN", {
+    timeZone: GAME_TIME_ZONE,
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+
+const formatSlotTime = (start: string, end: string) => {
+  const formatter = new Intl.DateTimeFormat("en-IN", {
+    timeZone: GAME_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `${formatter.format(new Date(start))} - ${formatter.format(new Date(end))}`;
+};
+
 const MyWating = () => {
   const handleCancel = (bookingId: number) => {};
   const navigate = useNavigate();
   const { userId } = useParams<{ userId: string }>();
-  const [waitings, setWaitings] = useState([]);
+  const [waitings, setWaitings] = useState<WaitingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,7 +43,7 @@ const MyWating = () => {
     const fetchWaitings = async () => {
       try {
         setLoading(true);
-        const response = await api.get(`/WaitingQueue/user/${userId}`);
+        const response = await api.get<WaitingEntry[]>(`/WaitingQueue/user/${userId}`);
         setWaitings(response.data);
         console.log(response.data);
         setError(null);
@@ -63,6 +91,8 @@ const MyWating = () => {
             <thead>
               <tr className="bg-gray-100 border-b">
                 <th className="px-4 py-2 text-left text-gray-600">Slot</th>
+                <th className="px-4 py-2 text-left text-gray-600">Slot Date</th>
+                <th className="px-4 py-2 text-left text-gray-600">Slot Time</th>
                 <th className="px-4 py-2 text-left text-gray-600">Status</th>
                 <th className="px-4 py-2 text-left text-gray-600">Action</th>
               </tr>
@@ -72,6 +102,12 @@ const MyWating = () => {
                 <tr key={waiting.queueId} className="hover:bg-gray-50 border-b">
                   <td className="px-4 py-2 font-medium">
                     {waiting.slotId || "N/A"}
+                  </td>
+                  <td className="px-4 py-2">
+                    {formatSlotDate(waiting.slotStartTime)}
+                  </td>
+                  <td className="px-4 py-2">
+                    {formatSlotTime(waiting.slotStartTime, waiting.slotEndTime)}
                   </td>
                   <td className="px-4 py-2">
                     <span

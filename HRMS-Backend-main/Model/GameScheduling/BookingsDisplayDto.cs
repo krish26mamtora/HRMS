@@ -9,6 +9,8 @@ namespace HRMS_Backend.Model.GameScheduling
     { 
         public int BId { get; set; }
         public int SlotId { get; set; }
+        public DateTime SlotStartTime { get; set; }
+        public DateTime SlotEndTime { get; set; }
         public int BookedBy { get; set; }
         public string status { get; set; }
         public string bookedAt { get; set; }

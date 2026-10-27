@@ -6,11 +6,33 @@ import api from '../auth/api/axios';
 interface Booking {
   bId: number;
   slotId: number;
+  slotStartTime: string;
+  slotEndTime: string;
   bookedBy: number;
   status: string;
   bookedAt: string;
   slotPlayed: boolean;
 }
+
+const GAME_TIME_ZONE = "Asia/Kolkata";
+
+const formatSlotDate = (value: string) =>
+  new Intl.DateTimeFormat("en-IN", {
+    timeZone: GAME_TIME_ZONE,
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+
+const formatSlotTime = (start: string, end: string) => {
+  const formatter = new Intl.DateTimeFormat("en-IN", {
+    timeZone: GAME_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `${formatter.format(new Date(start))} - ${formatter.format(new Date(end))}`;
+};
 
 const MyBookings = () => {
   const navigate = useNavigate();
@@ -101,6 +123,8 @@ const MyBookings = () => {
               <tr className="bg-gray-100 border-b">
                 <th className="px-4 py-2 text-left text-gray-600">Booking ID</th>
                 <th className="px-4 py-2 text-left text-gray-600">Slot ID</th>
+                <th className="px-4 py-2 text-left text-gray-600">Slot Date</th>
+                <th className="px-4 py-2 text-left text-gray-600">Slot Time</th>
                 <th className="px-4 py-2 text-left text-gray-600">Status</th>
                 <th className="px-4 py-2 text-left text-gray-600">Booked At</th>
                 <th className="px-4 py-2 text-left text-gray-600">Slot Played</th>
@@ -112,6 +136,10 @@ const MyBookings = () => {
                 <tr key={booking.bId} className="hover:bg-gray-50 border-b">
                   <td className="px-4 py-2">{booking.bId}</td>
                   <td className="px-4 py-2">{booking.slotId}</td>
+                  <td className="px-4 py-2">{formatSlotDate(booking.slotStartTime)}</td>
+                  <td className="px-4 py-2">
+                    {formatSlotTime(booking.slotStartTime, booking.slotEndTime)}
+                  </td>
                   <td className={`px-4 py-2 font-semibold ${booking.status === 'Booked' ? 'text-green-600' : 'text-red-600'}`}>
                     {booking.status}
                   </td>

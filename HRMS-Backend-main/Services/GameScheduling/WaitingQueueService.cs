@@ -35,8 +35,17 @@ namespace HRMS_Backend.Services.GameScheduling
 
         public async Task<IEnumerable<WaitingQueueDisplayDto>> GetWaitingUsersAsync(int slotId)
         {
-            var waitinglist = await _context.WaitingQueue.Where(wl => wl.SlotId == slotId && wl.Status == "Waiting").ToListAsync();
-            return _mapper.Map<IEnumerable<WaitingQueueDisplayDto>>(waitinglist);
+            var waitinglist = await _context.WaitingQueue
+                .Include(waiting => waiting.GameSlots)
+                .Where(waiting => waiting.SlotId == slotId && waiting.Status == "Waiting")
+                .ToListAsync();
+            return waitinglist.Select(waiting =>
+            {
+                var waitingDto = _mapper.Map<WaitingQueueDisplayDto>(waiting);
+                waitingDto.SlotStartTime = waiting.GameSlots.StartTime;
+                waitingDto.SlotEndTime = waiting.GameSlots.EndTime;
+                return waitingDto;
+            });
         }
         public async Task<Boolean> MarkUserAsAssignedAsync(int slotId, int userId)
         {
@@ -70,6 +79,7 @@ namespace HRMS_Backend.Services.GameScheduling
                 throw new ArgumentException("Invalid Player ID", nameof(playerId));
 
             var queueItems = await _context.WaitingQueue
+                   .Include(waiting => waiting.GameSlots)
                    .Where(wq => wq.PlayerId == playerId)
                    //.Select(wq => wq.SlotId)
                    // .Include()
@@ -87,7 +97,13 @@ namespace HRMS_Backend.Services.GameScheduling
             //    .ThenInclude(gs => gs.EndTime)
             //.Where(wq => wq.PlayerId == playerId)
             //.ToListAsync();
-            return _mapper.Map<IEnumerable<WaitingQueueDisplayDto>>(queueItems);
+            return queueItems.Select(waiting =>
+            {
+                var waitingDto = _mapper.Map<WaitingQueueDisplayDto>(waiting);
+                waitingDto.SlotStartTime = waiting.GameSlots.StartTime;
+                waitingDto.SlotEndTime = waiting.GameSlots.EndTime;
+                return waitingDto;
+            });
         }
     }
 }

@@ -251,23 +251,23 @@ namespace HRMS_Backend.Services.GameScheduling
             if (!waitingList.Any())
                 return;
 
-            var ZeroplayedUsers = await _context.EmployeeCycleStats.Where(e => e.GameCycleId == slot.CycleId && e.GamePlayed == 0).Select(e => e.UserId).ToListAsync();
-
             var priorityList = new List<(WaitingQueue Queue, int Priority)>();
 
             foreach (var q in waitingList)
             {
-                if (ZeroplayedUsers.Any() && !ZeroplayedUsers.Contains(q.PlayerId))
-                {
-                    continue;
-                }
-
                 var (isRejected, _) = await _fairnessService
                     .IsHardRejectedAsync(q.PlayerId, slotId);
 
                 if (isRejected)
                 {
                     q.Status = "Removed";
+                    continue;
+                }
+
+                var isEligible = await _fairnessService
+                    .IsEligibleForDirectBookingAsync(q.PlayerId, slot.CycleId);
+                if (!isEligible)
+                {
                     continue;
                 }
 
@@ -329,8 +329,17 @@ namespace HRMS_Backend.Services.GameScheduling
         }
         public async Task<BookingsDisplayDto> getBookingById(int id)
         {
-            var booking = await _context.Bookings.Include(b => b.BookingParticipants).FirstOrDefaultAsync(b => b.BId == id);
-            return _mapper.Map<BookingsDisplayDto>(booking);
+            var booking = await _context.Bookings
+                .Include(b => b.BookingParticipants)
+                .Include(b => b.GameSlots)
+                .FirstOrDefaultAsync(b => b.BId == id);
+            var bookingDto = _mapper.Map<BookingsDisplayDto>(booking);
+            if (booking?.GameSlots != null)
+            {
+                bookingDto.SlotStartTime = booking.GameSlots.StartTime;
+                bookingDto.SlotEndTime = booking.GameSlots.EndTime;
+            }
+            return bookingDto;
         }
         public async Task<IEnumerable<BookingsDisplayDto>> getBookingsByUserId(int id)
         {
@@ -346,10 +355,17 @@ namespace HRMS_Backend.Services.GameScheduling
 
             var bookings = await _context.Bookings
                 .Include(b => b.BookingParticipants)
+                .Include(b => b.GameSlots)
                 .Where(b => bookingIds.Contains(b.BId))
                 .ToListAsync();
 
-            return _mapper.Map<IEnumerable<BookingsDisplayDto>>(bookings);
+            return bookings.Select(booking =>
+            {
+                var bookingDto = _mapper.Map<BookingsDisplayDto>(booking);
+                bookingDto.SlotStartTime = booking.GameSlots.StartTime;
+                bookingDto.SlotEndTime = booking.GameSlots.EndTime;
+                return bookingDto;
+            });
         }
 
         private async Task NotifyBookedUsersAsync(List<int> userIds, GameSlots slot, int requesterId)
@@ -728,7 +744,7 @@ namespace HRMS_Backend.Services.GameScheduling
                     invite.Status = "Expired";
                 }
                 await _context.SaveChangesAsync();
-                Console.WriteLine($"[Cleanup] {DateTime.Now}: Released {expiredInvites.Count} expired invite seats.");
+                Console.WriteLine($"[Cleanup] {DateTime.UtcNow:O}: Released {expiredInvites.Count} expired invite seats.");
             }
         }
         private async Task SendInviteNotificationEmail(BookingInvite invite, GameSlots slot)

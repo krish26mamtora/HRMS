@@ -26,7 +26,7 @@ namespace HRMS_Backend.Controllers.GameScheduling
                 var generatedCount
                  = await _service.GenerateGameSlotAsync(
                     GamesId,
-                    DateOnly.FromDateTime(DateTime.Now));
+                    DateOnly.FromDateTime(DateTime.UtcNow));
                 return Ok(new { generatedSlots = generatedCount });
             }
             catch (InvalidOperationException ex)
