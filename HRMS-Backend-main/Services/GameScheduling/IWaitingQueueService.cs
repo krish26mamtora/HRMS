@@ -9,6 +9,7 @@ namespace HRMS_Backend.Services.GameScheduling
         public Task<IEnumerable<WaitingQueueDisplayDto>> GetWaitingUsersAsync(int slotId);
         public Task<Boolean> MarkUserAsAssignedAsync(int slotId, int userId);
         public Task<Boolean> RemoveUserFromQueueAsync(int slotId, int userId);
+        public Task<Boolean> CancelWaitingEntryAsync(int queueId, int userId);
 
         public Task<Boolean> IsUserInQueueAsync(int slotId, int userId);
         public Task<IEnumerable<WaitingQueueDisplayDto>> GetWaitingQueueByPlayerId(int playerId);

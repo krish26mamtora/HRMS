@@ -32,12 +32,13 @@ const formatSlotTime = (start: string, end: string) => {
 };
 
 const MyWating = () => {
-  const handleCancel = (bookingId: number) => {};
   const navigate = useNavigate();
   const { userId } = useParams<{ userId: string }>();
   const [waitings, setWaitings] = useState<WaitingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancellingQueueId, setCancellingQueueId] = useState<number | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchWaitings = async () => {
@@ -65,6 +66,39 @@ const MyWating = () => {
     }
   }, [userId]);
 
+  const handleCancel = async (queueId: number) => {
+    if (!window.confirm("Are you sure you want to leave this waiting queue?")) {
+      return;
+    }
+
+    setCancellingQueueId(queueId);
+    setCancelError(null);
+    try {
+      await api.delete(`/WaitingQueue/${queueId}`);
+      setWaitings((current) =>
+        current.map((waiting) =>
+          waiting.queueId === queueId
+            ? { ...waiting, status: "Removed" }
+            : waiting,
+        ),
+      );
+    } catch (err) {
+      console.error("Failed to cancel waiting queue entry", err);
+      const message = axios.isAxiosError(err)
+        ? err.response?.data?.message
+        : err instanceof Error
+          ? err.message
+          : null;
+      setCancelError(
+        typeof message === "string" && message
+          ? message
+          : "Unable to cancel this waiting queue entry. Please try again.",
+      );
+    } finally {
+      setCancellingQueueId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-4 text-blue-500">Loading your Waiting slots...</div>
@@ -78,6 +112,11 @@ const MyWating = () => {
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">My Waiting Slots</h1>
+      {cancelError && (
+        <p role="alert" className="mb-4 text-red-600">
+          {cancelError}
+        </p>
+      )}
       <button
         onClick={() => navigate(-1)}
         className="mb-4 text-blue-600 underline"
@@ -119,9 +158,14 @@ const MyWating = () => {
                   <td className="px-4 py-2">
                     <button
                       onClick={() => handleCancel(waiting.queueId)}
-                      className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition"
+                      disabled={waiting.status !== "Waiting" || cancellingQueueId === waiting.queueId}
+                      className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Cancel
+                      {cancellingQueueId === waiting.queueId
+                        ? "Cancelling..."
+                        : waiting.status === "Waiting"
+                          ? "Cancel"
+                          : "Unavailable"}
                     </button>
                   </td>
                 </tr>

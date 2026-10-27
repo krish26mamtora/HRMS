@@ -69,6 +69,21 @@ namespace HRMS_Backend.Services.GameScheduling
              return true;
         }
 
+        public async Task<Boolean> CancelWaitingEntryAsync(int queueId, int userId)
+        {
+            var record = await _context.WaitingQueue.FirstOrDefaultAsync(wq =>
+                wq.QueueId == queueId &&
+                wq.PlayerId == userId &&
+                wq.Status == "Waiting");
+
+            if (record == null) return false;
+
+            record.Status = "Removed";
+            record.UpdationTime = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
         public async Task<Boolean> IsUserInQueueAsync(int slotId, int userId)
         {
             return await _context.WaitingQueue.AnyAsync(wq => wq.SlotId == slotId && wq.PlayerId == userId && wq.Status == "Waiting");
