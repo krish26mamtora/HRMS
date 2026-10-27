@@ -18,6 +18,15 @@ export interface GameConfig {
   slotDuration: number;
   capacity: number;
 }
+
+interface GameCycle {
+  cycleId: number;
+  gamesId: number;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+}
+
 const GameConfig = () => {
   const navigate = useNavigate();
   const [games, setGames] = useState<Game[]>([]);
@@ -27,31 +36,74 @@ const GameConfig = () => {
   const [formData, setFormData] = useState<
     (Omit<GameConfig, "id"> & { id?: number }) | null
   >(null);
+  const [cycles, setCycles] = useState<GameCycle[]>([]);
+  const [selectedGameId, setSelectedGameId] = useState("");
+  const [cycleStartTime, setCycleStartTime] = useState("");
+  const [cycleEndTime, setCycleEndTime] = useState("");
+  const [cycleError, setCycleError] = useState<string | null>(null);
+  const [cycleLoadError, setCycleLoadError] = useState<string | null>(null);
+  const [cycleSuccess, setCycleSuccess] = useState<string | null>(null);
+  const [isStartingCycle, setIsStartingCycle] = useState(false);
 
   const fetchAllData = async () => {
     setIsLoading(true);
     try {
-      const [gamesRes, configs] = await Promise.all([
-        api.get<Game[]>("/Game"),
-        api
-          .get<GameConfig[]>("/GameConfig")
-          .then((response) => response.data)
-          .catch((requestError: unknown) => {
-            if (
-              axios.isAxiosError(requestError) &&
-              requestError.response?.status === 404
-            ) {
-              return [];
-            }
-            throw requestError;
-          }),
-      ]);
-      const combinedData = gamesRes.data.map((game) => ({
-        ...game,
-        config: configs.find((config) => config.gamesId === game.id),
-      }));
-      setGames(combinedData);
+      const gamesRes = await api.get<Game[]>("/Game");
+      setGames(gamesRes.data);
+      setSelectedGameId((currentGameId) =>
+        gamesRes.data.some((game) => game.id === Number(currentGameId))
+          ? currentGameId
+          : gamesRes.data[0]
+            ? String(gamesRes.data[0].id)
+            : "",
+      );
       setError(null);
+
+      try {
+        const configsRes = await api.get<GameConfig[]>("/GameConfig");
+        setGames(
+          gamesRes.data.map((game) => ({
+            ...game,
+            config: configsRes.data.find(
+              (config) => config.gamesId === game.id,
+            ),
+          })),
+        );
+      } catch (configError: unknown) {
+        if (
+          !(
+            axios.isAxiosError(configError) &&
+            configError.response?.status === 404
+          )
+        ) {
+          setError(
+            `Games loaded, but configurations could not be loaded: ${
+              configError instanceof Error
+                ? configError.message
+                : "Unknown error"
+            }`,
+          );
+        }
+      }
+
+      try {
+        const cyclesRes = await api.get<GameCycle[]>("/GameCycle");
+        setCycles(cyclesRes.data);
+        setCycleLoadError(null);
+      } catch (cycleFetchError: unknown) {
+        const status = axios.isAxiosError(cycleFetchError)
+          ? cycleFetchError.response?.status
+          : undefined;
+        setCycleLoadError(
+          status === 405
+            ? "Current cycles are unavailable because the running backend does not expose GET /api/GameCycle. Restart the backend so it loads the updated API."
+            : `Games loaded, but current cycles could not be loaded: ${
+                cycleFetchError instanceof Error
+                  ? cycleFetchError.message
+                  : "Unknown error"
+              }`,
+        );
+      }
     } catch (fetchError: unknown) {
       setError(
         fetchError instanceof Error
@@ -141,6 +193,73 @@ const GameConfig = () => {
       );
     }
   };
+
+  const startGameCycle = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const startDate = new Date(cycleStartTime);
+    const endDate = new Date(cycleEndTime);
+
+    if (
+      !selectedGameId ||
+      !cycleStartTime ||
+      !cycleEndTime ||
+      Number.isNaN(startDate.getTime()) ||
+      Number.isNaN(endDate.getTime()) ||
+      endDate <= startDate
+    ) {
+      setCycleError("Choose a game and a valid end date/time after the start.");
+      setCycleSuccess(null);
+      return;
+    }
+
+    setIsStartingCycle(true);
+    setCycleError(null);
+    setCycleSuccess(null);
+    try {
+      const response = await api.post<GameCycle>("/GameCycle", {
+        gamesId: Number(selectedGameId),
+        startTime: cycleStartTime,
+        endTime: cycleEndTime,
+        isActive: true,
+      });
+      setCycles((currentCycles) => [
+        ...currentCycles.map((cycle) =>
+          cycle.gamesId === response.data.gamesId
+            ? { ...cycle, isActive: false }
+            : cycle,
+        ),
+        response.data,
+      ]);
+      setCycleStartTime("");
+      setCycleEndTime("");
+      setCycleSuccess("Game cycle started successfully.");
+    } catch (saveError: unknown) {
+      const serverMessage = axios.isAxiosError(saveError)
+        ? (saveError.response?.data?.title ?? saveError.response?.data?.message)
+        : undefined;
+      setCycleError(
+        typeof serverMessage === "string"
+          ? serverMessage
+          : saveError instanceof Error
+            ? saveError.message
+            : "Failed to start game cycle.",
+      );
+    } finally {
+      setIsStartingCycle(false);
+    }
+  };
+
+  const activeCycles = games.map((game) => ({
+    game,
+    cycle: cycles
+      .filter((cycle) => cycle.gamesId === game.id && cycle.isActive)
+      .sort(
+        (first, second) =>
+          new Date(second.startTime).getTime() -
+          new Date(first.startTime).getTime(),
+      )[0],
+  }));
+
   const navigateBack = () => {
     const role =
       localStorage.getItem("role") == "HR"
@@ -275,6 +394,146 @@ const GameConfig = () => {
           </tbody>
         </table>
       </div>
+
+      <section className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-semibold text-slate-900">
+          Start a game cycle
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Choose a game and set when its cycle should begin and end. Starting a
+          new cycle makes it the active cycle for that game.
+        </p>
+        <form
+          onSubmit={startGameCycle}
+          className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4 md:items-end"
+        >
+          <label className="text-sm font-medium text-slate-700">
+            Game
+            <select
+              value={selectedGameId}
+              onChange={(event) => setSelectedGameId(event.target.value)}
+              required
+              className="mt-1 w-full rounded-md border border-slate-300 p-2"
+            >
+              {games.map((game) => (
+                <option key={game.id} value={game.id}>
+                  {game.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-slate-700">
+            Start date and time
+            <input
+              type="datetime-local"
+              value={cycleStartTime}
+              onChange={(event) => setCycleStartTime(event.target.value)}
+              required
+              className="mt-1 w-full rounded-md border border-slate-300 p-2"
+            />
+          </label>
+          <label className="text-sm font-medium text-slate-700">
+            End date and time
+            <input
+              type="datetime-local"
+              value={cycleEndTime}
+              onChange={(event) => setCycleEndTime(event.target.value)}
+              required
+              className="mt-1 w-full rounded-md border border-slate-300 p-2"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={isStartingCycle || games.length === 0}
+            className="rounded-md bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isStartingCycle ? "Starting..." : "Start cycle"}
+          </button>
+        </form>
+        {cycleError && (
+          <p role="alert" className="mt-3 text-sm text-red-600">
+            {cycleError}
+          </p>
+        )}
+        {cycleSuccess && (
+          <p role="status" className="mt-3 text-sm text-green-700">
+            {cycleSuccess}
+          </p>
+        )}
+      </section>
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-xl font-semibold text-slate-900">
+          Current game cycles
+        </h2>
+        {cycleLoadError && (
+          <p role="alert" className="mb-3 text-sm text-amber-700">
+            {cycleLoadError}
+          </p>
+        )}
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-slate-700">
+              <tr>
+                <th className="px-4 py-3 font-medium">Game</th>
+                <th className="px-4 py-3 font-medium">Start</th>
+                <th className="px-4 py-3 font-medium">End</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {activeCycles.map(({ game, cycle }) => (
+                <tr key={game.id}>
+                  <td className="px-4 py-3 font-medium text-slate-900">
+                    {game.name}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {cycleLoadError
+                      ? "--"
+                      : cycle
+                        ? new Date(cycle.startTime).toLocaleString()
+                        : "--"}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {cycleLoadError
+                      ? "--"
+                      : cycle
+                        ? new Date(cycle.endTime).toLocaleString()
+                        : "--"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={
+                        cycleLoadError
+                          ? "rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800"
+                          : cycle
+                            ? "rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800"
+                            : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
+                      }
+                    >
+                      {cycleLoadError
+                        ? "Unavailable"
+                        : cycle
+                          ? "Active"
+                          : "No active cycle"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {activeCycles.length === 0 && !isLoading && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-4 py-6 text-center text-slate-500"
+                  >
+                    No games found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 };

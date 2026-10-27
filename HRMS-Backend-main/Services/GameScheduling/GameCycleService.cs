@@ -17,9 +17,10 @@ namespace HRMS_Backend.Services.GameScheduling
             _context = context;
             _mapper = mapper;
         }
-        public async Task<IEnumerable<GameCycle>> GetAllGameCyclesAsync()
+        public async Task<IEnumerable<GameCycleDisplayDto>> GetAllGameCyclesAsync()
         {
-            return await _context.GameCycle.ToListAsync();
+            var cycles = await _context.GameCycle.ToListAsync();
+            return _mapper.Map<IEnumerable<GameCycleDisplayDto>>(cycles);
         }
 
 

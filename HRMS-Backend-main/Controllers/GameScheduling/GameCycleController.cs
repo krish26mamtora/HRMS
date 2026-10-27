@@ -11,9 +11,17 @@ namespace HRMS_Backend.Controllers.GameScheduling
     public class GameCycleController : ControllerBase
     {
         private readonly IGameCycleService _gameCycleService;
-        public GameCycleController(  IGameCycleService gameCycleService)
+        public GameCycleController(IGameCycleService gameCycleService)
         {
             _gameCycleService = gameCycleService;
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "HR")]
+        public async Task<IActionResult> GetAllGameCyclesAsync()
+        {
+            var cycles = await _gameCycleService.GetAllGameCyclesAsync();
+            return Ok(cycles);
         }
 
         [HttpPost]
